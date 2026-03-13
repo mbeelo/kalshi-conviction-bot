@@ -14,9 +14,12 @@ class KalshiMarketClient:
         self.series_ticker = Config.SERIES_TICKER
         self.session = requests.Session()
 
-    def find_active_market(self) -> Optional[Dict[str, Any]]:
+    def find_active_market(self, retry_count: int = 0) -> Optional[Dict[str, Any]]:
         """
-        Find the currently active KXBTC15M market.
+        Find the currently active KXBTC15M market with retry logic.
+
+        Args:
+            retry_count: Current retry attempt (internal use)
 
         Returns:
             Dict containing market data if found, None otherwise.
@@ -29,33 +32,52 @@ class KalshiMarketClient:
                 "series_ticker": self.series_ticker
             }
 
-            response = self.session.get(url, params=params, timeout=30)  # Increased timeout
+            response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
 
             data = response.json()
             markets = data.get("markets", [])
 
             # Add debug logging for Railway
-            print(f"DEBUG: Found {len(markets)} markets from Kalshi API")
+            print(f"DEBUG: Found {len(markets)} markets from Kalshi API (attempt {retry_count + 1})")
 
             if not markets:
+                if retry_count < Config.MARKET_DISCOVERY_RETRIES:
+                    print(f"No markets found, retrying in {Config.MARKET_DISCOVERY_DELAY}s...")
+                    time.sleep(Config.MARKET_DISCOVERY_DELAY)
+                    return self.find_active_market(retry_count + 1)
                 return None
 
             # Find the market with the soonest close_time
             # Note: API returns status="active" even though we query with status="open"
             active_markets = [m for m in markets if m.get("status") == "active"]
             if not active_markets:
+                if retry_count < Config.MARKET_DISCOVERY_RETRIES:
+                    print(f"No active markets found, retrying in {Config.MARKET_DISCOVERY_DELAY}s...")
+                    time.sleep(Config.MARKET_DISCOVERY_DELAY)
+                    return self.find_active_market(retry_count + 1)
                 return None
 
             # Sort by close_time to get the soonest one
             active_markets.sort(key=lambda m: m.get("close_time", ""))
-            return active_markets[0]
+            selected_market = active_markets[0]
+
+            print(f"✅ Selected market: {selected_market.get('ticker')} (closes at {selected_market.get('close_time')})")
+            return selected_market
 
         except requests.RequestException as e:
-            print(f"DEBUG: Network error finding active market: {e}")
+            if retry_count < Config.MARKET_DISCOVERY_RETRIES:
+                print(f"DEBUG: Network error finding active market: {e}, retrying...")
+                time.sleep(Config.MARKET_DISCOVERY_DELAY)
+                return self.find_active_market(retry_count + 1)
+            print(f"DEBUG: Network error finding active market after {Config.MARKET_DISCOVERY_RETRIES} retries: {e}")
             return None
         except Exception as e:
-            print(f"DEBUG: Unexpected error finding active market: {e}")
+            if retry_count < Config.MARKET_DISCOVERY_RETRIES:
+                print(f"DEBUG: Unexpected error finding active market: {e}, retrying...")
+                time.sleep(Config.MARKET_DISCOVERY_DELAY)
+                return self.find_active_market(retry_count + 1)
+            print(f"DEBUG: Unexpected error finding active market after {Config.MARKET_DISCOVERY_RETRIES} retries: {e}")
             return None
 
     def get_market_data(self, ticker: str) -> Optional[Dict[str, Any]]:
@@ -145,7 +167,7 @@ class KalshiMarketClient:
                 if parsed_data and parsed_data["result"]:
                     return parsed_data["result"]
 
-            time.sleep(Config.POLLING_INTERVAL)
+            time.sleep(Config.SLEEP_POLLING_INTERVAL)
 
         print(f"Timeout waiting for resolution of market {ticker}")
         return None

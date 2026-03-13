@@ -57,7 +57,7 @@ class ConvictionBotLive:
         print("🚀 Starting Conviction Bot LIVE")
         print(f"Strategy: If yes_ask_dollars >= ${Config.YES_BUY_THRESHOLD} → buy YES, if yes_ask_dollars <= ${Config.NO_BUY_THRESHOLD} → buy NO")
         print(f"Contract size: {Config.CONTRACT_QUANTITY}")
-        print(f"Polling interval: {Config.POLLING_INTERVAL}s")
+        print(f"Trading polling: {Config.TRADING_POLLING_INTERVAL}s, Sleep polling: {Config.SLEEP_POLLING_INTERVAL}s")
         print(f"Trading window: {Config.TRADING_WINDOW_MINUTES} minutes")
 
         # Check account balance
@@ -132,8 +132,8 @@ class ConvictionBotLive:
         if not self.trade_entered_this_cycle:
             self._check_trading_opportunity(market_data, cycle_id, current_time, time_remaining)
 
-        # Sleep until next poll
-        time.sleep(Config.POLLING_INTERVAL)
+        # Sleep until next poll (use fast polling during trading window)
+        time.sleep(Config.TRADING_POLLING_INTERVAL)
 
     def _handle_sleep_period(self, current_time: datetime):
         """Handle period between trading windows."""
@@ -165,8 +165,8 @@ class ConvictionBotLive:
         )
 
     def _get_market_data_with_retry(self) -> Optional[dict]:
-        """Get market data with retry logic."""
-        max_retries = 3
+        """Get market data with enhanced retry logic for market transitions."""
+        max_retries = Config.MARKET_DISCOVERY_RETRIES
         retry_count = 0
 
         while retry_count < max_retries:
@@ -178,10 +178,12 @@ class ConvictionBotLive:
 
             retry_count += 1
             if retry_count < max_retries:
-                print(f"No market data found, retrying ({retry_count}/{max_retries})...")
-                time.sleep(Config.ERROR_RETRY_DELAY)
+                # Use shorter delays during trading windows to handle market transitions
+                delay = Config.MARKET_DISCOVERY_DELAY if retry_count <= 2 else Config.ERROR_RETRY_DELAY
+                print(f"⚠️ No market data found, retrying in {delay}s ({retry_count}/{max_retries})...")
+                time.sleep(delay)
 
-        self.logger.log_error("market_data_error", "Failed to get market data after retries")
+        self.logger.log_error("market_data_error", f"Failed to get market data after {max_retries} retries")
         return None
 
     def _check_trading_opportunity(self, market_data: dict, cycle_id: str, current_time: datetime, time_remaining: float):
@@ -192,9 +194,25 @@ class ConvictionBotLive:
 
         if should_trade:
             print(f"\n🎯 TRADING SIGNAL DETECTED!")
+            print(f"   Market: {market_data['ticker']}")
+            print(f"   Cycle: {cycle_id}")
             print(f"   yes_ask: ${yes_ask:.4f}")
             print(f"   Signal: {side} at ${entry_price:.4f}")
             print(f"   Time remaining: {time_remaining:.0f}s")
+
+            # Log the trading signal detection
+            self.logger.log_bot_event(
+                "trading_signal_detected",
+                f"Signal: {side} at ${entry_price:.4f} for {cycle_id}",
+                {
+                    "cycle_id": cycle_id,
+                    "ticker": market_data["ticker"],
+                    "side": side,
+                    "entry_price": entry_price,
+                    "yes_ask": yes_ask,
+                    "time_remaining": time_remaining
+                }
+            )
 
             self._enter_live_trade(
                 cycle_id=cycle_id,

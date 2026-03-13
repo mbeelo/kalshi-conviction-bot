@@ -18,11 +18,14 @@ class Config:
     NO_BUY_THRESHOLD = 0.06   # If yes_ask_dollars <= 0.06 → buy NO
 
     # Timing parameters
-    POLLING_INTERVAL = 2              # seconds between polls
+    TRADING_POLLING_INTERVAL = 1      # seconds between polls during trading window (fast)
+    SLEEP_POLLING_INTERVAL = 2        # seconds between polls during sleep period (slower)
     TRADING_WINDOW_MINUTES = 6        # minutes before close to start trading
     WAKE_UP_MINUTES = 6               # minutes before close to wake up
     ERROR_RETRY_DELAY = 10            # seconds to wait on API errors
     RATE_LIMIT_BACKOFF = 5            # seconds to wait on rate limits
+    MARKET_DISCOVERY_RETRIES = 5      # max retries for finding active market
+    MARKET_DISCOVERY_DELAY = 0.5      # seconds between market discovery retries
 
     # Cycle times (minutes past the hour)
     CYCLE_TIMES = [0, 15, 30, 45]
