@@ -26,7 +26,7 @@ class ConvictionBot:
         self.market_client = KalshiMarketClient()
         self.scheduler = TradingScheduler()
         self.trader = PaperTrader()
-        self.logger = ConvictionLogger()
+        self.logger = ConvictionLogger(source="paper")
 
         self.running = False
         self.current_cycle_id = None

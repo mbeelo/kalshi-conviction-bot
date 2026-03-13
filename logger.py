@@ -9,10 +9,22 @@ from config import Config
 class ConvictionLogger:
     """Logger for poll data and trade activities."""
 
-    def __init__(self):
+    def __init__(self, source: str = "live"):
+        """
+        Initialize logger with source identification.
+
+        Args:
+            source: "live" for real trading, "paper" for simulated trading
+        """
         Config.ensure_log_directory()
+        self.source = source
         self.poll_log_file = Config.POLL_LOG_FILE
-        self.trade_log_file = Config.TRADE_LOG_FILE
+
+        # Use separate log files for paper vs live trading
+        if source == "paper":
+            self.trade_log_file = Config.PAPER_TRADE_LOG_FILE
+        else:
+            self.trade_log_file = Config.TRADE_LOG_FILE
 
     def log_poll_data(
         self,
@@ -77,6 +89,7 @@ class ConvictionLogger:
             "side": side,
             "entry_price": entry_price,
             "contracts": contracts,
+            "source": self.source,
             "type": "trade_entry"
         }
 
@@ -110,6 +123,7 @@ class ConvictionLogger:
             "pnl": pnl,
             "win": win,
             "resolution_time": resolution_time.isoformat() if resolution_time else None,
+            "source": self.source,
             "type": "trade_result"
         }
 
@@ -158,6 +172,7 @@ class ConvictionLogger:
             "pnl": pnl,
             "win": win,
             "resolution_time": resolution_time.isoformat() if resolution_time else None,
+            "source": self.source,
             "type": "complete_trade"
         }
 

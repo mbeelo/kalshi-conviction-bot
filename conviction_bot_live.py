@@ -29,7 +29,7 @@ class ConvictionBotLive:
         self.market_client = KalshiMarketClient()
         self.scheduler = TradingScheduler()
         self.trader = LiveTrader()
-        self.logger = ConvictionLogger()
+        self.logger = ConvictionLogger(source="live")
 
         self.running = False
         self.current_cycle_id = None

@@ -35,6 +35,7 @@ class Config:
     LOG_DIR = "logs"
     POLL_LOG_FILE = f"{LOG_DIR}/poll_data.jsonl"
     TRADE_LOG_FILE = f"{LOG_DIR}/trade_data.jsonl"
+    PAPER_TRADE_LOG_FILE = f"{LOG_DIR}/paper_trades.jsonl"
 
     @classmethod
     def ensure_log_directory(cls):
