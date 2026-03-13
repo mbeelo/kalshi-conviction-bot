@@ -24,8 +24,9 @@ class Config:
     WAKE_UP_MINUTES = 6               # minutes before close to wake up
     ERROR_RETRY_DELAY = 10            # seconds to wait on API errors
     RATE_LIMIT_BACKOFF = 5            # seconds to wait on rate limits
-    MARKET_DISCOVERY_RETRIES = 5      # max retries for finding active market
-    MARKET_DISCOVERY_DELAY = 0.5      # seconds between market discovery retries
+    MARKET_DISCOVERY_RETRIES = 15     # max retries for finding active market (increased for transitions)
+    MARKET_DISCOVERY_DELAY = 0.5      # initial delay for market discovery retries
+    MAX_MARKET_DISCOVERY_DELAY = 2.0  # max delay for exponential backoff
 
     # Cycle times (minutes past the hour)
     CYCLE_TIMES = [0, 15, 30, 45]

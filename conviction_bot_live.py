@@ -140,8 +140,18 @@ class ConvictionBotLive:
         # Check if we have any unresolved positions to monitor
         self._check_unresolved_positions()
 
-        # Sleep until next trading window
+        # Before sleeping for long periods, verify next market is discoverable
         sleep_time = self.scheduler.time_until_next_wake_up(current_time)
+        if sleep_time > 60:  # If sleeping more than 1 minute, verify market availability
+            print("📡 Verifying next market is discoverable before long sleep...")
+            test_market = self.market_client.get_current_market_state()
+            if not test_market:
+                print("⚠️  Cannot find next market - staying awake with short polling")
+                time.sleep(Config.SLEEP_POLLING_INTERVAL)
+                return
+            print(f"✅ Next market confirmed: {test_market['ticker']}")
+
+        # Sleep until next trading window
         if sleep_time > 0:
             self.scheduler.sleep_until_next_cycle(current_time)
 
@@ -166,24 +176,14 @@ class ConvictionBotLive:
 
     def _get_market_data_with_retry(self) -> Optional[dict]:
         """Get market data with enhanced retry logic for market transitions."""
-        max_retries = Config.MARKET_DISCOVERY_RETRIES
-        retry_count = 0
+        market_data = self.market_client.get_current_market_state()
 
-        while retry_count < max_retries:
-            market_data = self.market_client.get_current_market_state()
+        if market_data:
+            self.current_ticker = market_data["ticker"]
+            return market_data
 
-            if market_data:
-                self.current_ticker = market_data["ticker"]
-                return market_data
-
-            retry_count += 1
-            if retry_count < max_retries:
-                # Use shorter delays during trading windows to handle market transitions
-                delay = Config.MARKET_DISCOVERY_DELAY if retry_count <= 2 else Config.ERROR_RETRY_DELAY
-                print(f"⚠️ No market data found, retrying in {delay}s ({retry_count}/{max_retries})...")
-                time.sleep(delay)
-
-        self.logger.log_error("market_data_error", f"Failed to get market data after {max_retries} retries")
+        # Market discovery already has comprehensive retry logic built in
+        self.logger.log_error("market_data_error", "Failed to get market data - all retries exhausted in market_client")
         return None
 
     def _check_trading_opportunity(self, market_data: dict, cycle_id: str, current_time: datetime, time_remaining: float):

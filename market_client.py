@@ -16,7 +16,7 @@ class KalshiMarketClient:
 
     def find_active_market(self, retry_count: int = 0) -> Optional[Dict[str, Any]]:
         """
-        Find the currently active KXBTC15M market with retry logic.
+        Find the currently active KXBTC15M market with enhanced retry logic for transitions.
 
         Args:
             retry_count: Current retry attempt (internal use)
@@ -40,45 +40,93 @@ class KalshiMarketClient:
 
             # Add debug logging for Railway
             print(f"DEBUG: Found {len(markets)} markets from Kalshi API (attempt {retry_count + 1})")
+            if markets:
+                print(f"DEBUG: Market statuses: {[(m.get('ticker'), m.get('status'), m.get('close_time')) for m in markets[:3]]}")
 
             if not markets:
                 if retry_count < Config.MARKET_DISCOVERY_RETRIES:
-                    print(f"No markets found, retrying in {Config.MARKET_DISCOVERY_DELAY}s...")
-                    time.sleep(Config.MARKET_DISCOVERY_DELAY)
+                    delay = self._get_retry_delay(retry_count)
+                    print(f"⚠️  No markets found, retrying in {delay:.1f}s... ({retry_count + 1}/{Config.MARKET_DISCOVERY_RETRIES})")
+                    time.sleep(delay)
                     return self.find_active_market(retry_count + 1)
+                print(f"❌ CRITICAL: No markets found after {Config.MARKET_DISCOVERY_RETRIES} retries")
                 return None
 
-            # Find the market with the soonest close_time
-            # Note: API returns status="active" even though we query with status="open"
-            active_markets = [m for m in markets if m.get("status") == "active"]
-            if not active_markets:
+            # Find markets that are truly active and not about to close
+            current_time = datetime.utcnow()
+            valid_markets = []
+
+            for market in markets:
+                if market.get("status") != "active":
+                    continue
+
+                close_time_str = market.get("close_time")
+                if not close_time_str:
+                    continue
+
+                try:
+                    # Parse close time and validate it's in the future
+                    close_time_str = close_time_str.rstrip('Z')
+                    close_time = datetime.fromisoformat(close_time_str)
+
+                    # Only include markets that close more than 30 seconds in the future
+                    if (close_time - current_time).total_seconds() > 30:
+                        valid_markets.append(market)
+                    else:
+                        print(f"DEBUG: Skipping market {market.get('ticker')} - closes too soon ({close_time})")
+                except Exception as e:
+                    print(f"DEBUG: Error parsing close time for {market.get('ticker')}: {e}")
+                    continue
+
+            if not valid_markets:
                 if retry_count < Config.MARKET_DISCOVERY_RETRIES:
-                    print(f"No active markets found, retrying in {Config.MARKET_DISCOVERY_DELAY}s...")
-                    time.sleep(Config.MARKET_DISCOVERY_DELAY)
+                    delay = self._get_retry_delay(retry_count)
+                    print(f"⚠️  No valid active markets found, retrying in {delay:.1f}s... ({retry_count + 1}/{Config.MARKET_DISCOVERY_RETRIES})")
+                    time.sleep(delay)
                     return self.find_active_market(retry_count + 1)
+                print(f"❌ CRITICAL: No valid markets found after {Config.MARKET_DISCOVERY_RETRIES} retries")
                 return None
 
-            # Sort by close_time to get the soonest one
-            active_markets.sort(key=lambda m: m.get("close_time", ""))
-            selected_market = active_markets[0]
+            # Sort by close_time to get the soonest valid one
+            valid_markets.sort(key=lambda m: m.get("close_time", ""))
+            selected_market = valid_markets[0]
 
             print(f"✅ Selected market: {selected_market.get('ticker')} (closes at {selected_market.get('close_time')})")
             return selected_market
 
         except requests.RequestException as e:
             if retry_count < Config.MARKET_DISCOVERY_RETRIES:
-                print(f"DEBUG: Network error finding active market: {e}, retrying...")
-                time.sleep(Config.MARKET_DISCOVERY_DELAY)
+                delay = self._get_retry_delay(retry_count)
+                print(f"⚠️  Network error finding active market: {e}, retrying in {delay:.1f}s...")
+                time.sleep(delay)
                 return self.find_active_market(retry_count + 1)
-            print(f"DEBUG: Network error finding active market after {Config.MARKET_DISCOVERY_RETRIES} retries: {e}")
+            print(f"❌ Network error finding active market after {Config.MARKET_DISCOVERY_RETRIES} retries: {e}")
             return None
         except Exception as e:
             if retry_count < Config.MARKET_DISCOVERY_RETRIES:
-                print(f"DEBUG: Unexpected error finding active market: {e}, retrying...")
-                time.sleep(Config.MARKET_DISCOVERY_DELAY)
+                delay = self._get_retry_delay(retry_count)
+                print(f"⚠️  Unexpected error finding active market: {e}, retrying in {delay:.1f}s...")
+                time.sleep(delay)
                 return self.find_active_market(retry_count + 1)
-            print(f"DEBUG: Unexpected error finding active market after {Config.MARKET_DISCOVERY_RETRIES} retries: {e}")
+            print(f"❌ Unexpected error finding active market after {Config.MARKET_DISCOVERY_RETRIES} retries: {e}")
             return None
+
+    def _get_retry_delay(self, retry_count: int) -> float:
+        """
+        Calculate exponential backoff delay for market discovery retries.
+
+        Args:
+            retry_count: Current retry attempt number
+
+        Returns:
+            Delay in seconds
+        """
+        # Exponential backoff: 0.5s, 1.0s, 2.0s, then cap at 2.0s
+        base_delay = Config.MARKET_DISCOVERY_DELAY
+        max_delay = Config.MAX_MARKET_DISCOVERY_DELAY
+
+        delay = base_delay * (2 ** min(retry_count, 2))
+        return min(delay, max_delay)
 
     def get_market_data(self, ticker: str) -> Optional[Dict[str, Any]]:
         """
