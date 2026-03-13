@@ -14,7 +14,12 @@ class KalshiAuth:
 
     def __init__(self):
         self.api_key_id = os.getenv('KALSHI_API_KEY_ID')
-        self.private_key_path = os.getenv('KALSHI_PRIVATE_KEY_PATH')
+        # Force base64 mode if we detect Railway environment
+        if os.getenv('RAILWAY_ENVIRONMENT_ID'):
+            self.private_key_path = None  # Force base64 on Railway
+            print("DEBUG: Detected Railway environment, forcing base64 authentication")
+        else:
+            self.private_key_path = os.getenv('KALSHI_PRIVATE_KEY_PATH')
         self.demo_mode = os.getenv('KALSHI_DEMO', 'true').lower() == 'true'
 
         # Set base URL based on demo mode
