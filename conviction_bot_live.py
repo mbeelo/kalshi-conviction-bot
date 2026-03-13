@@ -42,10 +42,18 @@ class ConvictionBotLive:
 
         # Verify we're not in paper trading mode
         demo_mode = os.getenv('KALSHI_DEMO', 'true').lower() == 'true'
+        kalshi_demo_env = os.getenv('KALSHI_DEMO', 'NOT SET')
+        print(f"🔍 ENVIRONMENT DEBUG:")
+        print(f"   KALSHI_DEMO env var: '{kalshi_demo_env}'")
+        print(f"   Parsed demo_mode: {demo_mode}")
+        print(f"   Railway detected: {os.getenv('RAILWAY_ENVIRONMENT_ID') is not None}")
+
         if demo_mode:
             print("⚠️  RUNNING IN DEMO MODE")
+            print("   API URL: https://demo-api.kalshi.co/trade-api/v2")
         else:
             print("🔴 LIVE TRADING MODE - REAL MONEY")
+            print("   API URL: https://api.elections.kalshi.com/trade-api/v2")
 
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals gracefully."""

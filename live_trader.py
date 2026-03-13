@@ -96,16 +96,30 @@ class LiveTrader:
                 headers = self.auth.get_auth_headers("POST", endpoint)
                 url = self.auth.get_base_url() + endpoint
 
+                # Enhanced logging for debugging
+                print(f"🔍 ORDER DEBUG - Attempt {retry_count + 1}/{max_retries}")
+                print(f"   URL: {url}")
+                print(f"   Demo mode: {self.auth.is_demo_mode()}")
+                print(f"   Order data: {order_data}")
+                print(f"   Headers: {dict(headers)}")
+
                 response = self.session.post(url, json=order_data, headers=headers, timeout=10)
+
+                print(f"📡 API Response: Status {response.status_code}")
+                print(f"   Response headers: {dict(response.headers)}")
+                print(f"   Response text: {response.text}")
 
                 if response.status_code == 200 or response.status_code == 201:
                     order_result = response.json()
-                    print(f"✅ Order submitted successfully: {order_result}")
+                    print(f"✅ ORDER SUCCESS: {order_result}")
                     return order_result
 
                 elif response.status_code == 400:
                     error_data = response.json()
                     error_message = error_data.get('error', {}).get('message', '')
+
+                    print(f"❌ 400 ERROR: {error_message}")
+                    print(f"   Full error data: {error_data}")
 
                     if 'No contracts available' in error_message or 'insufficient liquidity' in error_message.lower():
                         retry_count += 1
@@ -113,11 +127,11 @@ class LiveTrader:
                         time.sleep(5)  # Wait 5 seconds before retry
                         continue
                     else:
-                        print(f"❌ Order failed with error: {error_message}")
+                        print(f"❌ ORDER FAILED - Non-retryable 400 error: {error_message}")
                         return None
 
                 else:
-                    print(f"❌ Order failed with status {response.status_code}: {response.text}")
+                    print(f"❌ ORDER FAILED - HTTP {response.status_code}: {response.text}")
                     return None
 
             except requests.RequestException as e:
