@@ -25,7 +25,7 @@ class KalshiMarketClient:
             url = f"{self.base_url}/markets"
             params = {
                 "limit": 100,
-                "status": "open",  # API parameter is "open"
+                "status": "active",  # Changed to "active" - this is what works
                 "series_ticker": self.series_ticker
             }
 
