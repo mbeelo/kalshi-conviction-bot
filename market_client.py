@@ -224,6 +224,9 @@ class KalshiMarketClient:
         """
         Get the current state of the active BTC 15-minute market.
 
+        Note: This method does full market discovery + price fetch.
+        For efficient polling, use get_market_prices() with a known ticker.
+
         Returns:
             Dict with current market state or None if no active market
         """
@@ -237,6 +240,27 @@ class KalshiMarketClient:
             return None
 
         # Get detailed market data
+        market_data = self.get_market_data(ticker)
+        if not market_data:
+            return None
+
+        # Parse the data
+        return self.parse_market_data(market_data)
+
+    def get_market_prices(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """
+        Get market prices for a known ticker - optimized for fast polling.
+
+        Args:
+            ticker: Known market ticker (e.g., from cached discovery)
+
+        Returns:
+            Dict with current market pricing data or None if failed
+        """
+        if not ticker:
+            return None
+
+        # Get detailed market data (skips discovery)
         market_data = self.get_market_data(ticker)
         if not market_data:
             return None

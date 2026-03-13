@@ -34,6 +34,7 @@ class ConvictionBotLive:
         self.running = False
         self.current_cycle_id = None
         self.current_ticker = None
+        self.current_market_ticker = None  # Cache discovered ticker for efficient polling
         self.trade_entered_this_cycle = False
 
         # Set up signal handlers for graceful shutdown
@@ -148,16 +149,23 @@ class ConvictionBotLive:
         # Check if we have any unresolved positions to monitor
         self._check_unresolved_positions()
 
-        # Before sleeping for long periods, verify next market is discoverable
+        # Before sleeping for long periods, discover and cache next market
         sleep_time = self.scheduler.time_until_next_wake_up(current_time)
-        if sleep_time > 60:  # If sleeping more than 1 minute, verify market availability
-            print("📡 Verifying next market is discoverable before long sleep...")
-            test_market = self.market_client.get_current_market_state()
-            if not test_market:
+        if sleep_time > 60:  # If sleeping more than 1 minute, prepare next market
+            print("📡 Discovering and caching next market before long sleep...")
+            next_market = self.market_client.find_active_market()
+            if not next_market:
                 print("⚠️  Cannot find next market - staying awake with short polling")
                 time.sleep(Config.SLEEP_POLLING_INTERVAL)
                 return
-            print(f"✅ Next market confirmed: {test_market['ticker']}")
+
+            # Cache the discovered ticker for when we wake up
+            next_ticker = next_market.get("ticker")
+            if next_ticker != self.current_market_ticker:
+                self.current_market_ticker = next_ticker
+                print(f"📈 Pre-cached next market ticker: {self.current_market_ticker}")
+            else:
+                print(f"✅ Next market confirmed: {self.current_market_ticker}")
 
         # Sleep until next trading window
         if sleep_time > 0:
@@ -173,21 +181,47 @@ class ConvictionBotLive:
         if balance is not None:
             print(f"💰 Current balance: ${balance:.2f}")
 
+        # Discover and cache market ticker for this cycle
+        print("🔍 Discovering market for new cycle...")
+        active_market = self.market_client.find_active_market()
+        if active_market:
+            self.current_market_ticker = active_market.get("ticker")
+            print(f"📈 Cached market ticker: {self.current_market_ticker}")
+        else:
+            self.current_market_ticker = None
+            print("⚠️  Failed to discover market for new cycle")
+
         self.current_cycle_id = cycle_id
         self.trade_entered_this_cycle = False
 
         self.logger.log_bot_event(
             "cycle_start",
             f"New trading cycle started: {cycle_id}",
-            {"cycle_id": cycle_id, "close_time": cycle_close_time.isoformat()}
+            {"cycle_id": cycle_id, "close_time": cycle_close_time.isoformat(), "market_ticker": self.current_market_ticker}
         )
 
     def _get_market_data_with_retry(self) -> Optional[dict]:
-        """Get market data with enhanced retry logic for market transitions."""
+        """Get market data using cached ticker for efficient polling."""
+
+        # Use cached ticker for fast polling if available
+        if self.current_market_ticker:
+            market_data = self.market_client.get_market_prices(self.current_market_ticker)
+            if market_data:
+                self.current_ticker = market_data["ticker"]
+                return market_data
+            else:
+                print(f"⚠️  Failed to get prices for cached ticker {self.current_market_ticker}, falling back to discovery...")
+                # Clear invalid cached ticker
+                self.current_market_ticker = None
+
+        # Fallback to full discovery if no cached ticker or cached ticker failed
+        print("🔍 Performing fallback market discovery...")
         market_data = self.market_client.get_current_market_state()
 
         if market_data:
             self.current_ticker = market_data["ticker"]
+            self.current_market_ticker = market_data["ticker"]  # Cache discovered ticker
+            print(f"📈 Updated cached ticker: {self.current_market_ticker}")
             return market_data
 
         # Market discovery already has comprehensive retry logic built in
