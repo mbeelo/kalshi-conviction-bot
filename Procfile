@@ -1,0 +1,1 @@
+worker: python conviction_bot_live.py
