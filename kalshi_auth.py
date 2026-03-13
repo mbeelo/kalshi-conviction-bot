@@ -32,27 +32,34 @@ class KalshiAuth:
         if base64_key:
             try:
                 key_data = base64.b64decode(base64_key)
+                print("DEBUG: Successfully loaded private key from base64")
                 return serialization.load_pem_private_key(
                     key_data,
                     password=None,
                     backend=default_backend()
                 )
             except Exception as e:
-                raise ValueError(f"Failed to load private key from base64: {e}")
+                print(f"DEBUG: Failed to load private key from base64: {e}")
+                # Don't raise here, try file path as fallback
 
-        # Fallback to file path
-        if not self.private_key_path or not os.path.exists(self.private_key_path):
-            raise ValueError(f"Private key not found at: {self.private_key_path} and no KALSHI_PRIVATE_KEY_BASE64 set")
+        # Fallback to file path only if base64 wasn't available
+        if not base64_key:
+            print(f"DEBUG: No base64 key found, trying file path: {self.private_key_path}")
 
-        try:
-            with open(self.private_key_path, "rb") as f:
-                return serialization.load_pem_private_key(
-                    f.read(),
-                    password=None,
-                    backend=default_backend()
-                )
-        except Exception as e:
-            raise ValueError(f"Failed to load private key from file: {e}")
+        if self.private_key_path and os.path.exists(self.private_key_path):
+            try:
+                with open(self.private_key_path, "rb") as f:
+                    print("DEBUG: Successfully loaded private key from file")
+                    return serialization.load_pem_private_key(
+                        f.read(),
+                        password=None,
+                        backend=default_backend()
+                    )
+            except Exception as e:
+                print(f"DEBUG: Failed to load private key from file: {e}")
+
+        # If we get here, both methods failed
+        raise ValueError(f"Could not load private key. Tried base64: {'Yes' if base64_key else 'No'}, Tried file: {self.private_key_path}")
 
     def create_signature(self, timestamp: str, method: str, path: str) -> str:
         """
