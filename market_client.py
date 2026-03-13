@@ -25,15 +25,18 @@ class KalshiMarketClient:
             url = f"{self.base_url}/markets"
             params = {
                 "limit": 100,
-                "status": "active",  # Changed to "active" - this is what works
+                "status": "open",  # API parameter is "open"
                 "series_ticker": self.series_ticker
             }
 
-            response = self.session.get(url, params=params, timeout=10)
+            response = self.session.get(url, params=params, timeout=30)  # Increased timeout
             response.raise_for_status()
 
             data = response.json()
             markets = data.get("markets", [])
+
+            # Add debug logging for Railway
+            print(f"DEBUG: Found {len(markets)} markets from Kalshi API")
 
             if not markets:
                 return None
@@ -49,7 +52,10 @@ class KalshiMarketClient:
             return active_markets[0]
 
         except requests.RequestException as e:
-            print(f"Error finding active market: {e}")
+            print(f"DEBUG: Network error finding active market: {e}")
+            return None
+        except Exception as e:
+            print(f"DEBUG: Unexpected error finding active market: {e}")
             return None
 
     def get_market_data(self, ticker: str) -> Optional[Dict[str, Any]]:
