@@ -20,8 +20,8 @@ class Config:
     # Timing parameters
     TRADING_POLLING_INTERVAL = 1      # seconds between polls during trading window (fast)
     SLEEP_POLLING_INTERVAL = 2        # seconds between polls during sleep period (slower)
-    TRADING_WINDOW_MINUTES = 6        # minutes before close to start trading
-    WAKE_UP_MINUTES = 6               # minutes before close to wake up
+    TRADING_WINDOW_MINUTES = 5        # minutes before close to start trading
+    WAKE_UP_MINUTES = 5               # minutes before close to wake up
     ERROR_RETRY_DELAY = 10            # seconds to wait on API errors
     RATE_LIMIT_BACKOFF = 5            # seconds to wait on rate limits
     MARKET_DISCOVERY_RETRIES = 15     # max retries for finding active market (increased for transitions)
