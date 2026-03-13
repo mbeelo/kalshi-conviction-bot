@@ -83,7 +83,9 @@ class LiveTrader:
             "action": "buy",
             "side": side,
             "count": quantity,
-            "type": "market",  # Use market orders for immediate execution
+            "type": "limit",
+            "yes_price": price_cents,
+            "client_order_id": f"{ticker}_{int(time.time())}"
         }
 
         max_retries = 60  # Retry for up to 5 minutes (60 * 5 seconds)
