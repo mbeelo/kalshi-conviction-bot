@@ -296,13 +296,20 @@ class ConvictionBotLive:
 
 def main():
     """Main entry point for live trading."""
-    # Safety check
-    confirm = input("⚠️  This will place REAL TRADES with REAL MONEY. Type 'CONFIRM' to proceed: ")
-    if confirm != "CONFIRM":
-        print("❌ Live trading cancelled")
-        return
+    # Detect if running on Railway (production environment)
+    is_railway = os.getenv('RAILWAY_ENVIRONMENT_ID') is not None
 
-    print("🔴 Starting live trading mode...")
+    if is_railway:
+        print("🚀 Running on Railway - Auto-confirming live trading mode")
+        print("🔴 Starting live trading mode...")
+    else:
+        # Safety check for local development
+        confirm = input("⚠️  This will place REAL TRADES with REAL MONEY. Type 'CONFIRM' to proceed: ")
+        if confirm != "CONFIRM":
+            print("❌ Live trading cancelled")
+            return
+        print("🔴 Starting live trading mode...")
+
     bot = ConvictionBotLive()
     bot.start()
 
